@@ -37,28 +37,29 @@ class NN:
     # self.co = makeMatrix (self.nh, self.no)
     
   def runNN (self, inputs):
-    rows, cols = inputs.shape
+    # rows, cols = inputs.shape
 
-    if rows != self.nin:
-      print ('incorrect number of inputs')
+    # if rows != self.nin:
+    #   print ('incorrect number of inputs')
 
-    if cols != self.ni-1:
-      print ('incorrect number of features')
+    # if cols != self.ni-1:
+    #   print ('incorrect number of features')
     
-    a1 = np.c_[ np.ones(self.nin), inputs ]              # add a column
+    a1 = np.c_[ np.ones(np.size(inputs,0)), inputs ]              # add a column
     z2 = np.dot(a1, self.wi)
 
     a2 = sigmoid(z2)
-    a2_wo_bias = a2
-    a2 = np.c_[np.ones(np.size(z2,1)), a2];
+    self.a2_wo_bias = a2                                #need this in backprop step
+    # print(np.shape(a2))
+    a2 = np.c_[np.ones(np.size(a2,0)), a2]
 
     self.ah = a2
 
-    z3 = np.dot(a2, self.wh)
+    z3 = np.dot(a2, self.wo)
     a3 = sigmoid(z3)
 
     self.ao = a3
-
+    # print(np.shape(self.ao))
 
     # for i in range(1,self.ni):      # init activations of input
     #   self.ai[i] = inputs[i-1]
@@ -82,20 +83,24 @@ class NN:
       
       
   
-  def backPropagate (self, targets, N, M):
-
-
+  def backPropagate (self, inputs, targets, N, M):
 
     o_error = targets - self.ao
     o_delta = o_error * dsigmoid(self.ao)
 
     weight_i_wo_bias = self.wi[1: , :]   #remove first bias row
     weight_o_wo_bias = self.wo[1: , :]
-    error_at_hidden = o_delta.dot(weight_o_wo_bias.T)
 
+    # print(np.shape(o_delta))
+    # print(np.shape(weight_o_wo_bias))
 
-    h_error = o_delta.dot()
+    h_error = o_delta.dot(weight_o_wo_bias.T)
+    h_delta = h_error * dsigmoid(self.a2_wo_bias)
 
+    self.wo[1: , :] += self.a2_wo_bias.T.dot(o_delta)*N
+    self.wo[0] = self.wo[0] + np.sum(o_delta, axis = 0, keepdims = True)*N
+    self.wi[1: , :] += inputs.T.dot(h_delta)*N
+    self.wi[0] = self.wi[0] + np.sum(h_delta, axis = 0, keepdims = True)*N
     # http://www.youtube.com/watch?v=aVId8KMsdUU&feature=BFa&list=LLldMCkmXl4j9_v0HeKdNcRA
     
     # calc output deltas
@@ -105,54 +110,55 @@ class NN:
     # This multiplication is done according to the chain rule as we are taking the derivative of the activation function
     # of the ouput node.
     # dE/dw[j][k] = (t[k] - ao[k]) * s'( SUM( w[j][k]*ah[j] ) ) * ah[j]
-    output_deltas = [0.0] * self.no
-    for k in range(self.no):
-      error = targets[k] - self.ao[k]
-      output_deltas[k] =  error * dsigmoid(self.ao[k]) 
+    # output_deltas = [0.0] * self.no
+    # for k in range(self.no):
+    #   error = targets[k] - self.ao[k]
+    #   output_deltas[k] =  error * dsigmoid(self.ao[k]) 
    
-    # update output weights
-    for j in range(1,self.nh):
-      for k in range(self.no):
-        # output_deltas[k] * self.ah[j] is the full derivative of dError/dweight[j][k]
-        change = output_deltas[k] * self.ah[j]
-        self.wo[j][k] += N*change #+ M*self.co[j][k]
-        # self.co[j][k] = change
+    # # update output weights
+    # for j in range(1,self.nh):
+    #   for k in range(self.no):
+    #     # output_deltas[k] * self.ah[j] is the full derivative of dError/dweight[j][k]
+    #     change = output_deltas[k] * self.ah[j]
+    #     self.wo[j][k] += N*change #+ M*self.co[j][k]
+    #     # self.co[j][k] = change
 
-        # bias updation
-    for k in range(self.no):
-      self.wo[0][k] += N*output_deltas[k]
-
-
+    #     # bias updation
+    # for k in range(self.no):
+    #   self.wo[0][k] += N*output_deltas[k]
 
 
-    # calc hidden deltas
-    hidden_deltas = [0.0] * self.nh
-    for j in range(1,self.nh):      # skipping 0th bcoz of bias unit
-      error = 0.0
-      for k in range(self.no):
-        error += output_deltas[k] * self.wo[j][k]
-      hidden_deltas[j] = error * dsigmoid(self.ah[j])
+
+
+    # # calc hidden deltas
+    # hidden_deltas = [0.0] * self.nh
+    # for j in range(1,self.nh):      # skipping 0th bcoz of bias unit
+    #   error = 0.0
+    #   for k in range(self.no):
+    #     error += output_deltas[k] * self.wo[j][k]
+    #   hidden_deltas[j] = error * dsigmoid(self.ah[j])
     
-    #update input weights
-    for i in range (1,self.ni):     # bias weight updated separately
-      for j in range (1,self.nh):   # bias unit of hidden not counted in updation
-        change = hidden_deltas[j] * self.ai[i]
-        #print 'activation',self.ai[i],'synapse',i,j,'change',change
-        self.wi[i][j-1] += N*change #+ M*self.ci[i][j]
-       # self.ci[i][j] = change
+    # #update input weights
+    # for i in range (1,self.ni):     # bias weight updated separately
+    #   for j in range (1,self.nh):   # bias unit of hidden not counted in updation
+    #     change = hidden_deltas[j] * self.ai[i]
+    #     #print 'activation',self.ai[i],'synapse',i,j,'change',change
+    #     self.wi[i][j-1] += N*change #+ M*self.ci[i][j]
+    #    # self.ci[i][j] = change
 
-    for j in range(1,self.nh):
-      self.wi[0][j-1] += N*hidden_deltas[j]
+    # for j in range(1,self.nh):
+    #   self.wi[0][j-1] += N*hidden_deltas[j]
 
 
         
-    # calc combined error
-    # 1/2 for differential convenience & **2 for modulus
-    error = 0.0
-    for k in range(len(targets)):
-      error += 0.5 * (targets[k]-self.ao[k])**2
-    return error
+    # # calc combined error
+    # # 1/2 for differential convenience & **2 for modulus
+    # error = 0.0
+    # for k in range(len(targets)):
+    #   error += 0.5 * (targets[k]-self.ao[k])**2
+    # return error
         
+    return np.sum(o_error ** 2)/2
         
   def weights(self):
     print ('Input weights:')
@@ -165,34 +171,41 @@ class NN:
     print ('')
   
   def test(self, patterns):
-    for p in patterns:
-      inputs = p[0]
-      print ('Inputs:', p[0], '-->', self.runNN(inputs), '\tTarget', p[1])
+    self.runNN(patterns)
+    print("calculated output : ")
+    print(self.ao)
+    # print("expected op : ")
+    # print(op)
   
   def train (self, patterns, max_iterations = 1000, N=0.7, M=0.1):
+    targets = patterns[:, -1] # for last column
+    targets = np.array([targets])
+    targets = targets.T           # to make a column vector
+    # print(targets)
+    inputs = patterns[:, :-1] # for all but last column
+
     for i in range(max_iterations):
       # for p in patterns:
-      targets = patterns[:, -1] # for last column
-      inputs = patterns[:, :-1] # for all but last column
+      
         # inputs, targets = np.split(p, [self.ni - 1])
         # inputs = p[0]
         # targets = p[1]
       self.runNN(inputs)
-      error = self.backPropagate(targets, N, M)
+      error = self.backPropagate(inputs, targets, N, M)
       if i % 50 == 0:
         print ('Combined error', error)
     # self.test(patterns)
-    # test_pat =[
-    #   [ [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] , [0] ],
-    #   [ [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] , [1] ]
-    # ]
+    test_pat =[
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] ,
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    ]
     np.save("weights_i_h",self.wi)
     np.save("weights_h_o",self.wo)
-    # self.test(test_pat)
+    self.test(test_pat)
     # self.weights()
     
 
-def sigmoid (self , x):
+def sigmoid (x):
   return 1/(1 + np.exp(-x))
 
 # sigmoid_v = np.vectorize(sigmoid)
@@ -230,7 +243,7 @@ def main ():
 # [ [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] , [1] ],
 # [ [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] , [1] ]
 # ]
-  myNN = NN ( 361, 38, 1)
+  myNN = NN ( 361, 38, 1, 18)
   myNN.train(pat)
   
   
